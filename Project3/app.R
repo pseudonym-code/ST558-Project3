@@ -3,7 +3,7 @@ library(shinydashboard)
 library(tidyverse)
 library(DT)
 
-data <- read.csv("../Project3/baseball.csv")
+data <- read.csv("../Project3/baseball.csv", fileEncoding="UTF-8-BOM")
 
 # Define UI for application that draws a histogram
 ui <- dashboardPage(
@@ -47,12 +47,20 @@ ui <- dashboardPage(
                         checkboxInput("change", "Adjust the data set?"),
                         conditionalPanel(
                             'input.change == true',
+                            br(),
                             checkboxGroupInput("show_vars", "Columns in data set to show:",
                                                            names(data), selected = names(data), inline=FALSE),
+                            actionLink("clearall","Clear Columns"),
+                            br(),
+                            textInput('filename',"Filename to save as? (default will be 'new_baseball.csv')"),
                             actionButton("generateButton","Save Data")
                         )
                     ),
-                    box(width=9,dataTableOutput("dataTable"))
+                    box(width=9,dataTableOutput("dataTable")),
+                    box(checkboxInput("dict", "Show data dictionary?"),
+                        conditionalPanel('input.dict == true',
+                                         tableOutput('datadict'))
+                    )
                 )
                 
         ),
@@ -102,6 +110,10 @@ ui <- dashboardPage(
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+    getNewData <- reactive({
+        newData <- data[input$dataTable_rows_all, input$show_vars]
+    })
+    
     getData <- reactive({
         newData <- data[, input$show_vars]
     })
@@ -127,7 +139,32 @@ server <- function(input, output, session) {
         options = list(scrollX = TRUE,lengthMenu = c(15, 30, 50, 100), pageLength = 10)
     )
     
-    observe({if(input$generateButton == 1) {write.csv(getData(),"new_baseball.csv", row.names = FALSE, na = "")}})
+    observe({
+        if(input$clearall == 0) return(NULL)
+        else {
+            updateCheckboxGroupInput(session,"show_vars", "Columns in data set to show:", names(data))
+        }
+    })
+     
+    observe({
+        if(input$generateButton == 1) {
+            if(!isTruthy(input$filename)){
+                write.csv(getNewData(),"new_baseball.csv", row.names = FALSE, na = "")
+            } else{
+                if(grepl(".csv", input$filename, fixed=TRUE)){
+                    write.csv(getNewData(),input$filename, row.names = FALSE, na = "")
+                } else{
+                    newFile <- paste0(input$filename, ".csv")
+                    write.csv(getNewData(),newFile, row.names = FALSE, na = "")
+                }
+            }
+        }
+    })
+    
+    output$datadict <- renderTable({
+        dict <- read.csv('../Project3/datadict.csv', fileEncoding="UTF-8-BOM")
+        dict
+    })
     
 }
 

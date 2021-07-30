@@ -1,0 +1,31 @@
+﻿Column Name,Description
+game_date,date of game (YYYY-MM-DD)
+home_team,home team abbreviation
+away_team,away team abbreviation
+batter_team,batter's team abbreviation
+batter_name,batter's name
+pitcher_name,pitcher's name
+is_batter_lefty,binary encoding of left-handed batters
+is_pitcher_lefty,binary encoding of left-handed pitchers
+bb_type,batted ball type classification
+bearing,horizontal direction classification of ball leaving the bat (i.e. 'left' ball is traveling to the left side of the field)
+pitch_name,name of pitch type thrown
+park,unique identifier of park venue
+name,park name
+cover,designation of stadiums with retractable roof or fixed dome
+lf_dim,distance to left field wall (feet)
+cf_dim,distance to center field wall (feet)
+rf_dim,distance to right field wall (feet)
+lf_w,height of left field wall (feet)
+cf_w,height of center field wall (feet)
+rf_w,height of right field wall (feet)
+inning,inning number within game
+outs_when_up,current number of outs
+balls,current number of balls
+strikes,current number of strikes
+plate_x,ball position left(-) or right(+) of center plate (feet)
+plate_z,ball position above home plate (feet)
+pitch_mph,speed of pitched ball (miles per hour)
+launch_speed,speed of ball leaving the bat (miles per hour)
+launch_angle,vertical angle of ball leaving the bat (degrees relative to horizontal)
+is_home_run,binary encoding of home runs
