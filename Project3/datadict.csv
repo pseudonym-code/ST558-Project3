@@ -1,5 +1,6 @@
-﻿Column Name,Description
-game_date,date of game (YYYY-MM-DD)
+﻿Column_Name,Description
+game_date,date of game (MM/DD/YYYY)
+game_month,month number of game
 home_team,home team abbreviation
 away_team,away team abbreviation
 batter_team,batter's team abbreviation
