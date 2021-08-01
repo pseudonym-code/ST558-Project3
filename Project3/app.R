@@ -4,9 +4,10 @@ library(plotly)
 library(shinydashboard)
 library(tidyverse)
 library(DT)
+library(caret)
 
 data <- read.csv("../Project3/baseball.csv", fileEncoding="UTF-8-BOM")
-setFactors = c("game_month","is_batter_lefty","is_pitcher_lefty","park","inning","outs_when_up","balls","strikes","is_home_run")
+setFactors = c("game_month","is_batter_lefty","is_pitcher_lefty","inning","outs_when_up","balls","strikes","is_home_run")
 data[setFactors] <- lapply(data[setFactors], factor)
 
 # Define UI for application that draws a histogram
@@ -90,23 +91,23 @@ ui <- dashboardPage(
                                              HTML("<b style='color:red;'>WARNING! Using an adjusted data set may lead to plots or tables not loading properly</b>"),
                                              br(),br()
                                          ),
-                                         selectInput("colorBy","Color by:", list("None","home_team","away_team","is_batter_lefty","is_pitcher_lefty","bb_type", "bearing", "pitch_name","cover","inning","outs_when_up","balls","strikes"))
+                                         selectInput("colorBy","Color by:", list("None","is_batter_lefty","is_pitcher_lefty","bb_type", "bearing", "pitch_name","inning","outs_when_up","balls","strikes"))
                                 ),
                                 tabPanel("HR by Team", 
                                          selectInput("team","Select Team:", c("None",sort(unique(data$batter_team)))),
-                                         selectInput("colorByTeam","Color by:", list("None","is_batter_lefty","is_pitcher_lefty","bb_type", "bearing", "pitch_name","cover","inning","outs_when_up","balls","strikes"))
+                                         selectInput("colorByTeam","Color by:", list("None","is_batter_lefty","is_pitcher_lefty","bb_type", "bearing", "pitch_name","inning","outs_when_up","balls","strikes"))
                                 ),
                                 tabPanel("HR by Park", 
                                          selectInput("park","Select Park:", c("None",sort(unique(data$name)))),
-                                         selectInput("colorByPark","Color by:", list("None","away_team","is_batter_lefty","is_pitcher_lefty","bb_type", "bearing", "pitch_name","cover","inning","outs_when_up","balls","strikes"))
+                                         selectInput("colorByPark","Color by:", list("None","away_team","is_batter_lefty","is_pitcher_lefty","bb_type", "bearing", "pitch_name","inning","outs_when_up","balls","strikes"))
                                 ),
                                 tabPanel("HR by Batter", 
                                          selectInput("batter","Select Batter:", c("None",sort(unique(data$batter_name)))),
-                                         selectInput("colorByBatter","Color by:", list("None","home_team","away_team","is_pitcher_lefty","bb_type", "bearing", "pitch_name","cover","inning","outs_when_up","balls","strikes"))
+                                         selectInput("colorByBatter","Color by:", list("None","home_team","away_team","is_pitcher_lefty","bb_type", "bearing", "pitch_name","inning","outs_when_up","balls","strikes"))
                                 ),
                                 tabPanel("HR by Pitcher", 
                                          selectInput("pitcher","Select Pitcher:", c("None",sort(unique(data$pitcher_name)))),
-                                         selectInput("colorByPitcher","Color by:", list("None","home_team","away_team","is_batter_lefty","bb_type", "bearing", "pitch_name","cover","inning","outs_when_up","balls","strikes"))
+                                         selectInput("colorByPitcher","Color by:", list("None","home_team","away_team","is_batter_lefty","bb_type", "bearing", "pitch_name","inning","outs_when_up","balls","strikes"))
                                 )
                             ),
                             box(width=NULL),
@@ -145,25 +146,27 @@ ui <- dashboardPage(
             ),
             
             # Modeling tab content
-            tabItem(tabName = "model",
-                    fluidRow(
-                        box(),
-                        box()
-                    )
-            ),
-            
             # Model info tab content
             tabItem(tabName = "info",
                     fluidRow(
-                        box(),
-                        box()
+                        box(width=4, title = "Generalized Linear Model", status = "success", solidHeader = TRUE),
+                        box(width=4, title = "Classification Tree", status = "primary", solidHeader = TRUE),
+                        box(width=4, title = "Random Forest", status = "warning", solidHeader = TRUE)
                     )
             ),
             
             # Model fitting tab content
             tabItem(tabName = "fit",
                     fluidRow(
-                        box(),
+                        box(width = 4, title = "Inputs", status = "primary", solidHeader = TRUE,
+                            numericInput('trainProp',"Select proportion of data set for Training", 10, 90, 5),
+                            selectInput('modelChoice', "Select Model Type: ", c("All Models","Logistic Regression (GLM)", "Classification Tree", "Random Forest")),
+                            numericInput('cvNum',"Select number of Cross-Validations", 5, 25, 5),
+                            conditionalPanel('input.modelChoice != "Logistic Regression (GLM)',
+                                             numericInput('repNum',"Select number of CV Repeats:", 1, 10, 1)
+                            ),
+                            actionButton('button1',"Run Models", icon("refresh"))
+                        ),
                         box()
                     )
             ),
@@ -217,6 +220,39 @@ server <- function(input, output, session) {
                 data
             }
         }
+    })
+    
+    trainTest <- reactive({
+        # Split into train and test sets
+        set.seed(144)
+        trainNum <- sample(1:nrow(data), size = nrow(data)*input$trainProp)
+        testNum <- dplyr::setdiff(1:nrow(data), train)
+        trainData <- data[trainNum, ]
+        testData <- data[testNum, ]
+        list(trainData,testData)
+    })
+    
+    glmFit <- reactive({
+        logFit <- train(is_home_run ~ input$, data = train, family = "binomial",
+                        method="glm", preProcess = c("center","scale"),
+                        trControl = trainControl(method = "cv", number = input$cvNum))
+    })
+    
+    treeFit <- reactive({
+        trctrl <- trainControl(method = "repeatedcv", number = input$cvNum, repeats = input$repNum)
+        
+        classTreeFit <- train(is_home_run ~ input$,
+                              data = trainData, method = "rpart",
+                              trControl=trctrl,
+                              preProcess = c("center", "scale"))
+    })
+    
+    forestFit <- reactive({
+        trctrl <- trainControl(method = "repeatedcv", number = input$cvNum, repeats = input$repNum)
+        ranForestFit <- train(is_home_run ~ input$,
+                              data = diabDataTrain, method = "rf",
+                              trControl=trctrl,
+                              preProcess = c("center", "scale"))
     })
 
     # About tab functions
@@ -316,7 +352,7 @@ server <- function(input, output, session) {
     
     output$pitcherPlot <- renderPlot({
         plotData <- getPlotData()
-        if(input$colorByPitcher == ""){
+        if(input$colorByPitcher == "None"){
             legend = NULL
         } else{
             legend = input$colorByPitcher
@@ -328,6 +364,38 @@ server <- function(input, output, session) {
     output$allDataTbl <- renderTable({
         table(data)
     })
+    
+    # Modeling tabs functions
+    # Model info
+    
+    # Model fitting
+    observeEvent(input$button1, {
+        withProgress(message = "Training Model", value = 1.0, {             
+
+            splitData <- trainTest()
+            trainData <- splitData[1]
+            testData <- splitData[2]
+            
+            if(input$modelChoice == "All Models"){
+    
+                logFit <- glmFit()
+                treeFit <- classFit()
+                forestFit <- randomFit()
+                models <- list(logFit,treeFit,forestFit)
+                
+            } else if(input$modelChoice == "Logistic Regression (GLM)"){
+                models <- glmFit()
+            } else if(input$modelChoice == "Classification Tree"){
+                models <- classFit()
+            } else if(input$modelChoice == "Random Forest"){
+                models <- randomFit()
+            } 
+        
+        })
+
+    })
+    
+    # Model Prediction
 }
 
 # Run the application 
