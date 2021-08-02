@@ -8,7 +8,7 @@ library(caret)
 library(ROCR)
 library(Metrics)
 
-data <- read.csv("../Project3/baseball.csv", fileEncoding="UTF-8-BOM")
+data <- read.csv("baseball.csv", fileEncoding="UTF-8-BOM")
 setFactors = c("game_month","is_batter_lefty","is_pitcher_lefty","inning","outs_when_up","balls","strikes","is_home_run")
 data[setFactors] <- lapply(data[setFactors], factor)
 plotNum <- 0
