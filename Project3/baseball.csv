@@ -1,4 +1,4 @@
-game_month,batter_team,is_batter_lefty,is_pitcher_lefty,bb_type,bearing,pitch_name,name,inning,outs_when_up,balls,strikes,plate_x,plate_z,pitch_mph,launch_speed,launch_angle,is_home_run
+game_month,batter_team,is_batter_lefty,is_pitcher_lefty,bb_type,bearing,pitch_name,park_name,inning,outs_when_up,balls,strikes,plate_x,plate_z,pitch_mph,launch_speed,launch_angle,is_home_run
 8,SF,0,1,fly_ball,center,Sinker,Oracle Park,3,1,0,0,-0.06,2.28,94.4,105.9,27,1
 8,OAK,0,0,ground_ball,left,Slider,RingCentral Coliseum,7,2,0,0,0.17,1.72,85.5,89,-21,0
 9,MIA,0,0,line_drive,right,Curveball,Marlins Park,5,1,2,2,0.48,1.91,84.8,78.8,14,0

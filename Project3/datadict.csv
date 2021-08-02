@@ -6,7 +6,7 @@ is_pitcher_lefty,binary encoding of left-handed pitchers
 bb_type,batted ball type classification
 bearing,horizontal direction classification of ball leaving the bat (i.e. 'left' ball is traveling to the left side of the field)
 pitch_name,name of pitch type thrown
-name,park name
+park_name,park name
 inning,inning number within game
 outs_when_up,current number of outs
 balls,current number of balls

@@ -11,7 +11,7 @@ library(Metrics)
 data <- read.csv("../Project3/baseball.csv", fileEncoding="UTF-8-BOM")
 setFactors = c("game_month","is_batter_lefty","is_pitcher_lefty","inning","outs_when_up","balls","strikes","is_home_run")
 data[setFactors] <- lapply(data[setFactors], factor)
-
+plotNum <- 0
 
 # Define UI for application that draws a histogram
 ui <- dashboardPage(
@@ -86,23 +86,99 @@ ui <- dashboardPage(
                     h1("Data Exploration"),
                     fluidRow(
                         column(width=4,
-                            box(width=NULL),
-                            box(width=NULL),
-                            box(width=NULL)
-                        ),
-                        column(width=4,
-                            box(width=NULL,title="HR Plot", status="success",solidHeader = T
+                            box(width=NULL,title="Plot Inputs", status="danger",solidHeader = T,
+                                radioButtons("dataChoice",label="Select Data Set", choices = c("Original Data", "Adjusted Data (Data Tab)")),
+                                conditionalPanel(
+                                    "input.dataChoice != 'Original Data'",
+                                    HTML("<b style='color:red;'>WARNING! Using an adjusted data set may lead to plots or tables not loading properly. Ensure variables used are included in your data set</b>"),
+                                    br(),br()
+                                ),
+                                selectInput('varNum', "Select Number of Variables to Plot: ", c("One Variable", "Multiple Variables")),
+                                conditionalPanel(condition = "input.varNum == 'One Variable'",
+                                                 selectInput('onePlot', "Select Plot Type: ", c("Histogram","Bar Graph")),
+                                                 conditionalPanel('input.onePlot == "Histogram"',
+                                                                  selectInput('histPlot', "Select Variable: ", c("plate_x","plate_z","pitch_mph","launch_speed","launch_angle")),
+                                                                  numericInput('bins',"Select Number of Bins: ", 30, 1,50,1)
+                                                ),
+                                                conditionalPanel('input.onePlot == "Bar Graph"',
+                                                                 selectInput('barPlot', "Select Variable: ", c("game_month","batter_team","is_batter_lefty","is_pitcher_lefty","bb_type","bearing","pitch_name","name","inning","outs_when_up","balls","strikes"))
+                                                )
+                                ),
+                                conditionalPanel(condition = "input.varNum == 'Multiple Variables'",
+                                                 selectInput('twoPlot', "Select Plot Type: ", c("Correlation","Scatterplot","Bar Graph", "Box Plot")),
+                                                 conditionalPanel('input.twoPlot == "Correlation"',
+                                                                  checkboxInput("hrInclude", "Include the response variable?")
+                                                 ),
+                                                 conditionalPanel(condition = "input.twoPlot == 'Scatterplot'",
+                                                                  selectInput('scatterX', "Select X-axis Variable: ", names(data)[-length(names(data))], selected = 'plate_x'),
+                                                                  selectInput('scatterY', "Select Y-axis Variable: ", names(data)[-length(names(data))], selected = 'plate_z'),
+                                                                  checkboxInput("hrIncludeScatter", "Include the response variable as color? (Press Create Plots Below)")
+                                                 ),
+                                                 conditionalPanel(condition = "input.twoPlot == 'Bar Graph'",
+                                                                  selectInput('barX', "Select X-axis Variable: ", names(data)[-length(names(data))]),
+                                                                  p("Select Y-axis Variable: Y axis will be sum of HR for given variable.")
+                                                 ),
+                                                 conditionalPanel(condition = "input.twoPlot == 'Box Plot'",
+                                                                  selectInput('boxX', "Select X-axis Variable: ", c("game_month","batter_team","is_batter_lefty","is_pitcher_lefty","bb_type","bearing","pitch_name","name","inning","outs_when_up","balls","strikes")),
+                                                                  selectInput('boxY', "Select Y-axis Variable: ", c("plate_x","plate_z","pitch_mph","launch_speed","launch_angle"))
+                                                 )
+                                ),
+                                actionButton('button3',"Create Plots", icon("drafting-compass"))
                             ),
-                            box(width=NULL),
-                            box(width=NULL)
                         ),
-                        column(width=4,
-                            box(width=NULL,title="HR Data", status="info",solidHeader = T
+                        column(width=8,
+                            box(width=NULL,title="Plot", status="success",solidHeader = T,
+                                conditionalPanel(condition = "input.varNum == 'One Variable'",
+                                                 conditionalPanel('input.onePlot == "Histogram"',
+                                                                  plotOutput('histPlot')
+                                                 ),
+                                                 conditionalPanel('input.onePlot == "Bar Graph"',
+                                                                  plotOutput('barPlot')
+                                                 )
+                                ),
+                                conditionalPanel(condition = "input.varNum == 'Multiple Variables'",
+                                                 conditionalPanel('input.twoPlot == "Correlation"',
+                                                                  plotOutput('corrPlot')
+                                                 ),
+                                                 conditionalPanel(condition = "input.twoPlot == 'Scatterplot'",
+                                                                  plotlyOutput('explorePlot')
+                                                 ),
+                                                 conditionalPanel(condition = "input.twoPlot == 'Bar Graph'",
+                                                                  plotOutput('colPlot')
+                                                 ),
+                                                 conditionalPanel(condition = "input.twoPlot == 'Box Plot'",
+                                                                  plotOutput('boxPlot')
+                                                 )
+                                ),
+                                downloadButton('downPlot','Download Plot')
                             ),
-                            box(width=NULL),
-                            box(width=NULL)
+                        box(width=NULL,title="Data Summary", status="info",solidHeader = T,
+                            conditionalPanel(condition = "input.varNum == 'One Variable'",
+                                             conditionalPanel('input.onePlot == "Histogram"',
+                                                              dataTableOutput('histTbl')
+                                             ),
+                                             conditionalPanel('input.onePlot == "Bar Graph"',
+                                                              dataTableOutput('barTbl')
+                                             )
+                            ),
+                            conditionalPanel(condition = "input.varNum == 'Multiple Variables'",
+                                             conditionalPanel('input.twoPlot == "Correlation"',
+                                                              dataTableOutput('corrTbl')
+                                             ),
+                                             conditionalPanel(condition = "input.twoPlot == 'Scatterplot'",
+                                                              dataTableOutput('exploreTbl')
+                                             ),
+                                             conditionalPanel(condition = "input.twoPlot == 'Bar Graph'",
+                                                              dataTableOutput('colTbl')
+                                             ),
+                                             conditionalPanel(condition = "input.twoPlot == 'Box Plot'",
+                                                              dataTableOutput('boxTbl')
+                                             )
+                            ),
                         )
+                            
                     )
+                )
             ),
             
             # Modeling tab content
@@ -149,21 +225,24 @@ ui <- dashboardPage(
                                 verbatimTextOutput("logSum"),
                                 br(),
                                 h4("Model Confusion Matrix"),
-                                verbatimTextOutput("logConf")
+                                verbatimTextOutput("logConf"),
+                                textOutput("logMisClass")
                             ),
                             box(title = "Classification Tree", status = "primary", solidHeader = TRUE, width = 8, collapsible = T,
                                 h4("Model Summary"),
                                 verbatimTextOutput("treeSum"),
                                 br(),
                                 h4("Model Confusion Matrix"),
-                                verbatimTextOutput("treeConf")
+                                verbatimTextOutput("treeConf"),
+                                textOutput("treeMisClass")
                             ),
                             box(title = "Random Forest", status = "warning", solidHeader = TRUE, width = 8, collapsible = T,
                                 h4("Model Summary"),
                                 verbatimTextOutput("forSum"),
                                 br(),
                                 h4("Model Confusion Matrix"),
-                                verbatimTextOutput("forConf")
+                                verbatimTextOutput("forConf"),
+                                textOutput("forMisClass")
                             )
                         )
                     )
@@ -191,6 +270,7 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
     # Data functions
+    
     getNewData <- reactive({
         newData <- data[input$dataTable_rows_all, input$show_vars]
     })
@@ -207,7 +287,7 @@ server <- function(input, output, session) {
         testNum <- dplyr::setdiff(1:nrow(data), trainNum)
         trainData <- data[trainNum, ]
         testData <- data[testNum, ]
-        print(colnames(trainData))
+        
         list(trainData,testData)
         
     })
@@ -270,8 +350,7 @@ server <- function(input, output, session) {
      
     observe({
         if(input$generateButton == 1) {
-            #data <<- getNewData()
-            
+
             if(!isTruthy(input$filename)){
                 write.csv(getNewData(),"new_baseball.csv", row.names = FALSE, na = "")
             } else{
@@ -291,18 +370,114 @@ server <- function(input, output, session) {
     })
     
     # Data Exploration tab functions
-    output$allDataPlot <- renderPlot({
-        plotData <- getPlotData()
-        if(input$colorBy == "None"){
-            legend = NULL
+    observeEvent(input$button3, {
+        if(input$dataChoice == "Original Data"){
+            plotData <- data
         } else{
-            legend = plotData[,input$colorBy]
+            plotData <- getNewData()
         }
-        g <- ggplot(plotData, aes(x = game_month, y = is_home_run, fill = legend))
-        g + geom_bar(stat="identity") + labs(x = "Month", y = "Home Runs") + labs(title="Home Runs by Month")
+        plotCol = "deepskyblue1"
+        
+        if(input$varNum == "One Variable"){
+            if(input$onePlot == "Histogram"){
+                
+                output$histPlot <- renderPlot({ 
+                    g <- ggplot(plotData, aes_string(input$histPlot))
+                    g + geom_histogram(fill=plotCol,color="black",bins = input$bins) + labs(title = paste("Histogram of",input$histPlot))
+                })
+                
+                output$histTbl <- renderDataTable({
+                    summary(plotData[input$histPlot])
+                })
+                
+            } else{
+                
+                output$barPlot <- renderPlot({ 
+                    g <- ggplot(plotData, aes_string(input$barPlot))
+                    g + geom_bar(fill=plotCol,color="black") + labs(title = paste("Bar Graph of",input$barPlot))
+                })
+                
+                output$barTbl <- renderDataTable({
+                    a <- plotData %>% group_by(plotData[input$barPlot]) %>% tally(sort = T)
+                    datatable(a, rownames= FALSE)
+                })
+            }
+        } else{
+            if(input$twoPlot == "Correlation"){
+                if(input$hrInclude){
+                    
+                    output$corrPlot <- renderPlot({ 
+                        pairs(plotData[13:18])
+                    })
+                    
+                } else{
+                    
+                    output$corrPlot <- renderPlot({ 
+                        pairs(plotData[13:17])
+                    })
+                 
+                    output$corrTbl <- renderDataTable({
+                        cor(plotData[13:17])
+                    })
+                    
+                }
+            } else if(input$twoPlot == "Scatterplot"){
+                if(input$hrIncludeScatter){
+                    
+                    output$explorePlot <- renderPlotly({ 
+                        plot_ly(plotData,type="scatter",x=as.formula(paste0("~",input$scatterX)),y=as.formula(paste0("~",input$scatterY)),color=~is_home_run) %>% layout(title = paste(input$scatterX,"by",input$scatterY))
+                    })
+                    
+                } else{
+                    
+                    output$explorePlot <- renderPlotly({ 
+                        plot_ly(plotData,type="scatter",x=as.formula(paste0("~",input$scatterX)),y=as.formula(paste0("~",input$scatterY))) %>% layout(title = paste(input$scatterX,"by",input$scatterY))
+                    })
+                    
+                }
+                
+                output$exploreTbl <- renderDataTable({
+                    a <- plotData %>% group_by(plotData[input$scatterX], plotData[input$scatterY]) %>% summarise(sumHR = sum(as.numeric(is_home_run)))
+                    datatable(a, rownames= FALSE)
+                })
+                
+            } else if(input$twoPlot == "Bar Graph"){
+                
+                data2 <- plotData %>% group_by(plotData[input$barX]) %>% summarise(sumHR = sum(as.numeric(is_home_run)))
+                
+                output$colPlot <- renderPlot({
+                    
+                    g <- ggplot(data2, aes_string(x = paste0("reorder(",input$barX,",-sumHR)"), y = "sumHR"))
+                    g + geom_col(fill = plotCol, color="black") + labs(title=paste("Count of HR by", input$barX)) + xlab(input$barX)
+                    
+                })
+                
+                output$colTbl <- renderDataTable({
+                    datatable(data2, rownames= FALSE)
+                })
+                
+            } else{
+                output$boxPlot <- renderPlot({
+                    
+                    g <- ggplot(plotData, aes_string(x = input$boxX, y = input$boxY))
+                    g + geom_boxplot(fill = plotCol, color="black") + labs(title=paste("Box Plot of",input$boxX,"by",input$boxY))
+                    
+                })
+                
+                output$boxTbl <- renderDataTable({
+                    do.call(cbind,tapply(plotData[[input$boxY]], plotData[[input$boxX]],function(x) format(summary(x),scientific=T)))
+                })
+                
+            }
+        }
     })
     
-    
+    output$downPlot <- downloadHandler(
+        filename = function() { paste('plot',date(), '.png', sep='') },
+        content = function(file) {
+            ggsave(file, device = "png")
+        }
+    )
     
     # Modeling tabs functions
     # Model info
@@ -345,18 +520,31 @@ server <- function(input, output, session) {
                 
                 output$logConf <- renderPrint({
                     p <- predict(logFit, dplyr::select(testData, -"is_home_run"))
-                    logTbl <- confusionMatrix(p, testData$is_home_run)
+                    logTbl <<- confusionMatrix(p, testData$is_home_run)
                     logTbl
                 })
+                
+                output$logMisClass <- renderText({
+                    paste0("Misclassification Rate: ", round(1-logTbl$overall['Accuracy'][[1]],2)*100, "%")
+                })
+                
                 output$treeConf <- renderPrint({
                     p <- predict(treeFit, dplyr::select(testData, -"is_home_run"))
-                    treeTbl <- confusionMatrix(p, testData$is_home_run)
+                    treeTbl <<- confusionMatrix(p, testData$is_home_run)
                     treeTbl
                 })
+                
+                output$treeMisClass <- renderText({
+                    paste0("Misclassification Rate: ", round(1-treeTbl$overall['Accuracy'][[1]],2)*100, "%")
+                })
+                
                 output$forConf <- renderPrint({
                     p <- predict(forestFit, dplyr::select(testData, -"is_home_run"))
-                    forTbl <- confusionMatrix(p, testData$is_home_run)
+                    forTbl <<- confusionMatrix(p, testData$is_home_run)
                     forTbl
+                })
+                output$forMisClass <- renderText({
+                    paste0("Misclassification Rate: ", round(1-forTbl$overall['Accuracy'][[1]],2)*100, "%")
                 })
                 
             } else if(input$modelChoice == "Logistic Regression (GLM)"){
@@ -366,9 +554,14 @@ server <- function(input, output, session) {
                 output$logSum <- renderPrint({summary(logFit)})
                 output$logConf <- renderTable({
                     p <- predict(logFit, dplyr::select(testData, -"is_home_run"))
-                    newTbl <-  confusionMatrix(p, testData$is_home_run)
+                    newTbl <<-  confusionMatrix(p, testData$is_home_run)
                     newTbl
                 })
+                
+                output$logMisClass <- renderText({
+                    paste0("Misclassification Rate: ", round(1-newTbl$overall['Accuracy'][[1]],2)*100, "%")
+                })
+                
             } else if(input$modelChoice == "Classification Tree"){
                 treeFit <<- classFit()
                 incProgress(amount = 0.75, message = "Model Trained: Classification Tree", detail = NULL,
@@ -376,9 +569,14 @@ server <- function(input, output, session) {
                 output$treeSum <- renderPrint({treeFit})
                 output$treeConf <- renderTable({
                     p <- predict(treeFit, dplyr::select(testData, -"is_home_run"))
-                    newTbl <-  confusionMatrix(p, testData$is_home_run)
+                    newTbl <<-  confusionMatrix(p, testData$is_home_run)
                     newTbl
                 })
+                
+                output$treeMisClass <- renderText({
+                    paste0("Misclassification Rate: ", round(1-newTbl$overall['Accuracy'][[1]],2)*100, "%")
+                })
+                
             } else if(input$modelChoice == "Random Forest"){
                 forestFit <<- randomFit()
                 incProgress(amount = 0.75, message = "Model Trained: Random Forest", detail = NULL,
@@ -386,9 +584,14 @@ server <- function(input, output, session) {
                 outputforSum <- renderPrint({forestFit})
                 output$forConf <- renderTable({
                     p <- predict(forestFit, dplyr::select(testData, -"is_home_run"))
-                    newTbl <-  confusionMatrix(p, testData$is_home_run)
+                    newTbl <<-  confusionMatrix(p, testData$is_home_run)
                     newTbl
                 })
+                
+                output$forMisClass <- renderText({
+                    paste0("Misclassification Rate: ", round(1-newTbl$overall['Accuracy'][[1]],2)*100, "%")
+                })
+                
             } 
         
         })
@@ -429,6 +632,8 @@ server <- function(input, output, session) {
     })
 }
 
+
+    
 # Run the application 
 shinyApp(ui = ui, server = server)
-
+#shiny::runGitHub("<your repository name>", "<your user name>")
