@@ -1,8 +1,6 @@
 ﻿Column_Name,Description
 game_month,month number of game
 batter_team,batter's team abbreviation
-batter_name,batter's name
-pitcher_name,pitcher's name
 is_batter_lefty,binary encoding of left-handed batters
 is_pitcher_lefty,binary encoding of left-handed pitchers
 bb_type,batted ball type classification

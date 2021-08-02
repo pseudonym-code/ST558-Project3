@@ -5,10 +5,13 @@ library(shinydashboard)
 library(tidyverse)
 library(DT)
 library(caret)
+library(ROCR)
+library(Metrics)
 
 data <- read.csv("../Project3/baseball.csv", fileEncoding="UTF-8-BOM")
 setFactors = c("game_month","is_batter_lefty","is_pitcher_lefty","inning","outs_when_up","balls","strikes","is_home_run")
 data[setFactors] <- lapply(data[setFactors], factor)
+
 
 # Define UI for application that draws a histogram
 ui <- dashboardPage(
@@ -41,7 +44,7 @@ ui <- dashboardPage(
                     h1("About the Dashboard"),
                     fluidRow(
                         box(
-                            HTML("<p>This applet allows for exploration into what factors lead to Home Runs (HR) in baseball. You can do this through exploring the data, altering the data set, and modeling using multiple different methods. The data set includes a number of variables about both the individual match-up of pitcher vs. batter, as well as the ballpark dimensions which often play a large part in the number of HR hit. This <a href='https://www.kaggle.com/jcraggy/baseball'>data set</a> comes from <a href='https://www.kaggle.com/'>kaggle</a>, a popular data science competition and collaboration website.</p>"),
+                            HTML("<p>This applet allows for exploration into what factors lead to Home Runs (HR) in baseball. You can do this through exploring the data, altering the data set, and modeling using multiple different methods. The data set includes a number of variables about both the individual match-up of pitcher vs. batter, as well as the ballpark dimensions which often play a large part in the number of HR hit. This <a href='https://www.kaggle.com/jcraggy/baseball'>data set</a> comes from <a href='https://www.kaggle.com/'>kaggle</a>, a popular data science competition and collaboration website. We are using a randomized subset of the data for this applet.</p>"),
                             uiOutput("about"),
                             br(),
                             HTML("<p> Now dig into the data and see what you can find!</p>")
@@ -60,7 +63,7 @@ ui <- dashboardPage(
                                 'input.change == true',
                                 br(),
                                 checkboxGroupInput("show_vars", "Columns in data set to show:",
-                                                               names(data), selected = names(data), inline=FALSE),
+                                                   names(data), selected = names(data), inline=FALSE),
                                 actionLink("clearall","Clear Columns"),
                                 br(),br(),
                                 textInput('filename',"Filename to save as? (default will be 'new_baseball.csv')"),
@@ -83,65 +86,22 @@ ui <- dashboardPage(
                     h1("Data Exploration"),
                     fluidRow(
                         column(width=4,
-                            tabBox(width=NULL, title = "HR Inputs", id = "tabset1",
-                                tabPanel("HR Data", 
-                                         radioButtons("dataChoice",label="Select Data Set", choices = c("Original Data", "Adjusted Data")),
-                                         conditionalPanel(
-                                             "input.dataChoice == 'Adjusted Data'",
-                                             HTML("<b style='color:red;'>WARNING! Using an adjusted data set may lead to plots or tables not loading properly</b>"),
-                                             br(),br()
-                                         ),
-                                         selectInput("colorBy","Color by:", list("None","is_batter_lefty","is_pitcher_lefty","bb_type", "bearing", "pitch_name","inning","outs_when_up","balls","strikes"))
-                                ),
-                                tabPanel("HR by Team", 
-                                         selectInput("team","Select Team:", c("None",sort(unique(data$batter_team)))),
-                                         selectInput("colorByTeam","Color by:", list("None","is_batter_lefty","is_pitcher_lefty","bb_type", "bearing", "pitch_name","inning","outs_when_up","balls","strikes"))
-                                ),
-                                tabPanel("HR by Park", 
-                                         selectInput("park","Select Park:", c("None",sort(unique(data$name)))),
-                                         selectInput("colorByPark","Color by:", list("None","away_team","is_batter_lefty","is_pitcher_lefty","bb_type", "bearing", "pitch_name","inning","outs_when_up","balls","strikes"))
-                                ),
-                                tabPanel("HR by Batter", 
-                                         selectInput("batter","Select Batter:", c("None",sort(unique(data$batter_name)))),
-                                         selectInput("colorByBatter","Color by:", list("None","home_team","away_team","is_pitcher_lefty","bb_type", "bearing", "pitch_name","inning","outs_when_up","balls","strikes"))
-                                ),
-                                tabPanel("HR by Pitcher", 
-                                         selectInput("pitcher","Select Pitcher:", c("None",sort(unique(data$pitcher_name)))),
-                                         selectInput("colorByPitcher","Color by:", list("None","home_team","away_team","is_batter_lefty","bb_type", "bearing", "pitch_name","inning","outs_when_up","balls","strikes"))
-                                )
+                            box(width=NULL),
+                            box(width=NULL),
+                            box(width=NULL)
+                        ),
+                        column(width=4,
+                            box(width=NULL,title="HR Plot", status="success",solidHeader = T
                             ),
                             box(width=NULL),
                             box(width=NULL)
                         ),
                         column(width=4,
-                            box(width=NULL,title="HR Plot", status="success",solidHeader = T,
-                                conditionalPanel("input.tabset1 == 'HR Data'",
-                                                 plotOutput("allDataPlot")
-                                ),
-                                conditionalPanel("input.tabset1 == 'HR by Team'",
-                                                 plotOutput("teamPlot")
-                                ),
-                                conditionalPanel("input.tabset1 == 'HR by Park'",
-                                                 plotOutput("parkPlot")
-                                ),
-                                conditionalPanel("input.tabset1 == 'HR by Batter'",
-                                                 plotOutput("batterPlot")
-                                ),
-                                conditionalPanel("input.tabset1 == 'HR by Pitcher'",
-                                                 plotOutput("pitcherPlot")
-                                )
-                                    
+                            box(width=NULL,title="HR Data", status="info",solidHeader = T
                             ),
                             box(width=NULL),
                             box(width=NULL)
-                        ),
-                        column(width=4,
-                            box(width=NULL,title="HR Data", status="info",solidHeader = T,
-                                tableOutput("allDataTbl")
-                            ),
-                            box(width=NULL),
-                            box(width=NULL)
-                        ),
+                        )
                     )
             ),
             
@@ -149,40 +109,86 @@ ui <- dashboardPage(
             # Model info tab content
             tabItem(tabName = "info",
                     fluidRow(
-                        box(width=4, title = "Generalized Linear Model", status = "success", solidHeader = TRUE),
-                        box(width=4, title = "Classification Tree", status = "primary", solidHeader = TRUE),
-                        box(width=4, title = "Random Forest", status = "warning", solidHeader = TRUE)
+                        box(width=4, title = "Generalized Linear Model", status = "success", solidHeader = TRUE,
+                            HTML("<p> <a href='https://en.wikipedia.org/wiki/Logistic_regression'>Logistic Regression</a> is very common generalized linear model (GLM) used for classification of success/failure. This is perfect for this case, as we are looking at a response variable with 1 being a success, a home run, and 0 being a failure to hit a home run. Due to the nature of the data, we are modeling the average number of successes for a group of given explanatory variables. This requires that predictions are bound by 0 and 1. This is done by using the logistic function.</p>"),
+                            uiOutput('logEQ'),
+                            HTML("<p>Logistic Regression is very simple to train and interpret. There are few asumptions needed, and performs well with linearly separable data. Some disadvantages include that it contains linear boundaries, and therefore is a linear function. Complex relationships are hard to model using this method. Overall, this is a good, simple model for classification.")
+                        ),
+                        box(width=4, title = "Classification Tree", status = "primary", solidHeader = TRUE,
+                            HTML("<p> <a href='https://en.wikipedia.org/wiki/Decision_tree_learning'>Classification Trees</a> are a tree based method of classification. The goal of this model is to classify and predict group membership. In our case, that 'group' is either a home run or not. The basis of this method is that the predictor space is split up into different regions, with each region being given a different prediction. Splits are chosen until nodes are created for the data that lead to a prediction. These trees can also be pruned to prevent overfitting and decrease variance. </p>"),
+                            br(),
+                            HTML("<p>Trees are very simple to understand, and easy to interpret. There is no scaling that needs to be done and no assumptions necessary for this method. It also includes variable selection in the process as it leads to the most impactful variables. Some disadvantages include that very minor changes to the data can lead to massive changes in the tree itself. This is due to the way that it is calculated. Another disadvantage is the need for pruning, where without it there is a tendency for overfitting.</p>")
+                        ),
+                        box(width=4, title = "Random Forest", status = "warning", solidHeader = TRUE,
+                            HTML("<p> <a href='https://en.wikipedia.org/wiki/Random_forest'>Random Forests</a> are an extension of the classification trees. Rather than relying on just one tree, we can create a forest of random trees from the data and take the average across these fitted trees. This works as we are mostly focused on the prediction accuracy of the models. Due to the nature of the forest, the variance is decreased when compared to a single tree, though the interpretability is decreased significantly. These forests are created by randomly selecting a subset of the predictors for a bootstrap sample and creating a new tree from that sample. The trees are then all averaged together to create the forest prediction.</p>"),
+                                 br(),
+                                 HTML("<p>Some of the advantages of the random forest algorthim is that the trees are independent. This leads to lower variance overall in the model. Like the tree model, these forests have built-in feature selection. Outliers do not affect these models very easily, and they provide an answer for both linear and non-linear relationships. There are few disadvantages to this method. First, these forests are not easy to interpret. The variable importance can be seen but the actual interpretation is a black box. Another disadvantage is that these algorithms are very computationally intensive in comparison.</p>")
+                        )
                     )
             ),
             
             # Model fitting tab content
             tabItem(tabName = "fit",
                     fluidRow(
-                        box(width = 4, title = "Inputs", status = "primary", solidHeader = TRUE,
-                            numericInput('trainProp',"Select proportion of data set for Training", 10, 90, 5),
+                        box(width = 4, title = "Inputs", status = "danger", solidHeader = TRUE,
+                            numericInput('trainProp',"Select Proportion of Data Set for Training:", value = 80, min = 10, max = 90, step = 5),
                             selectInput('modelChoice', "Select Model Type: ", c("All Models","Logistic Regression (GLM)", "Classification Tree", "Random Forest")),
-                            numericInput('cvNum',"Select number of Cross-Validations", 5, 25, 5),
-                            conditionalPanel('input.modelChoice != "Logistic Regression (GLM)',
-                                             numericInput('repNum',"Select number of CV Repeats:", 1, 10, 1)
+                            checkboxGroupInput('expVar', "Select Explanatory Variables: ",
+                                               names(data)[-length(names(data))], selected = names(data)[-length(names(data))], inline=FALSE),
+                            actionLink("clearall2","Clear Variables"),
+                            br(),br(),
+                            numericInput('cvNum',"Select number of Cross-Validations:", 10, min = 5, max = 25, step = 5),
+                            conditionalPanel('input.modelChoice != "Logistic Regression (GLM)"',
+                                             numericInput('repNum',"Select number of CV Repeats:", 3, min = 1, max = 10, step = 1)
                             ),
-                            actionButton('button1',"Run Models", icon("refresh"))
+                            actionButton('button1',"Run Models", icon("cog"))
                         ),
-                        box()
+                        column(width=8,
+                            box(title = "Generalized Linear Model", status = "success", solidHeader = TRUE, width = 8, collapsible = T,
+                                h4("Model Summary"),
+                                verbatimTextOutput("logSum"),
+                                br(),
+                                h4("Model Confusion Matrix"),
+                                verbatimTextOutput("logConf")
+                            ),
+                            box(title = "Classification Tree", status = "primary", solidHeader = TRUE, width = 8, collapsible = T,
+                                h4("Model Summary"),
+                                verbatimTextOutput("treeSum"),
+                                br(),
+                                h4("Model Confusion Matrix"),
+                                verbatimTextOutput("treeConf")
+                            ),
+                            box(title = "Random Forest", status = "warning", solidHeader = TRUE, width = 8, collapsible = T,
+                                h4("Model Summary"),
+                                verbatimTextOutput("forSum"),
+                                br(),
+                                h4("Model Confusion Matrix"),
+                                verbatimTextOutput("forConf")
+                            )
+                        )
                     )
             ),
             
             # Prediction tab content
             tabItem(tabName = "predict",
                     fluidRow(
-                        box(),
-                        box()
+                        box(title="Prediction Inputs", status="danger",solidHeader = T,width = 8,
+                            selectInput('predChoice', "Select Model Type: ", c("Logistic Regression (GLM)", "Classification Tree", "Random Forest")),
+                            br(),
+                            textOutput("outputVars"),
+                            br(),
+                            br(),                            
+                            textInput("predVal", "Input values for above variables with a ';' between each and no space. For example, '8;Coors Field;2'"),
+                            actionButton('button2',"Predict!", icon("search"))
+                        ),
+                        box("Prediction", status = "success", solidHeader=T,
+                            verbatimTextOutput("outPred"))
                     )
             )
         )
     )
 )
 
-# Define server logic required to draw a histogram
 server <- function(input, output, session) {
     # Data functions
     getNewData <- reactive({
@@ -193,66 +199,43 @@ server <- function(input, output, session) {
         newData <- data[, input$show_vars]
     })
     
-    getPlotData <- reactive({
-        if(input$dataChoice == "Original Data"){
-            if(input$tabset1 == 'HR by Team'){
-                newData <- data %>% filter(batter_team == input$team)
-            } else if(input$tabset1 == 'HR by Park'){
-                newData <- data %>% filter(name == input$park)
-            } else if(input$tabset1 == 'HR by Batter'){
-                newData <- data %>% filter(batter_name == input$batter)
-            } else if(input$tabset1 == 'HR by Pitcher'){
-                newData <- data %>% filter(pitcher_name == input$pitcher)
-            } else{
-                data
-            }
-        } else{
-            data <- getNewData()
-            if(input$tabset1 == 'HR by Team'){
-                newData <- data %>% filter(batter_team == input$team)
-            } else if(input$tabset1 == 'HR by Park'){
-                newData <- data %>% filter(name == input$park)
-            } else if(input$tabset1 == 'HR by Batter'){
-                newData <- data %>% filter(batter_name == input$batter)
-            } else if(input$tabset1 == 'HR by Pitcher'){
-                newData <- data %>% filter(pitcher_name == input$pitcher)
-            } else{
-                data
-            }
-        }
-    })
-    
     trainTest <- reactive({
         # Split into train and test sets
         set.seed(144)
-        trainNum <- sample(1:nrow(data), size = nrow(data)*input$trainProp)
-        testNum <- dplyr::setdiff(1:nrow(data), train)
+        data <- data[complete.cases(data), c("is_home_run",input$expVar)]
+        trainNum <- sample(1:nrow(data), size = nrow(data)*(input$trainProp/100))
+        testNum <- dplyr::setdiff(1:nrow(data), trainNum)
         trainData <- data[trainNum, ]
         testData <- data[testNum, ]
+        print(colnames(trainData))
         list(trainData,testData)
+        
     })
     
     glmFit <- reactive({
-        logFit <- train(is_home_run ~ input$, data = train, family = "binomial",
+        logFit <- train(as.formula(paste("is_home_run", "~", paste(input$expVar, collapse = "+"))), data = trainData, family = "binomial",
                         method="glm", preProcess = c("center","scale"),
-                        trControl = trainControl(method = "cv", number = input$cvNum))
+                        trControl = trainControl(method = "cv", number = input$cvNum),
+                        na.action = na.pass)
     })
     
-    treeFit <- reactive({
+    classFit <- reactive({
         trctrl <- trainControl(method = "repeatedcv", number = input$cvNum, repeats = input$repNum)
         
-        classTreeFit <- train(is_home_run ~ input$,
+        classTreeFit <- train(as.formula(paste("is_home_run", "~", paste(input$expVar, collapse = "+"))),
                               data = trainData, method = "rpart",
                               trControl=trctrl,
-                              preProcess = c("center", "scale"))
+                              preProcess = c("center", "scale"),
+                              na.action = na.pass)
     })
     
-    forestFit <- reactive({
+    randomFit <- reactive({
         trctrl <- trainControl(method = "repeatedcv", number = input$cvNum, repeats = input$repNum)
-        ranForestFit <- train(is_home_run ~ input$,
-                              data = diabDataTrain, method = "rf",
+        ranForestFit <- train(as.formula(paste("is_home_run", "~", paste(input$expVar, collapse = "+"))),
+                              data = trainData, method = "rf",
                               trControl=trctrl,
-                              preProcess = c("center", "scale"))
+                              preProcess = c("center", "scale"),
+                              na.action = na.pass)
     })
 
     # About tab functions
@@ -287,6 +270,8 @@ server <- function(input, output, session) {
      
     observe({
         if(input$generateButton == 1) {
+            #data <<- getNewData()
+            
             if(!isTruthy(input$filename)){
                 write.csv(getNewData(),"new_baseball.csv", row.names = FALSE, na = "")
             } else{
@@ -317,78 +302,93 @@ server <- function(input, output, session) {
         g + geom_bar(stat="identity") + labs(x = "Month", y = "Home Runs") + labs(title="Home Runs by Month")
     })
     
-    output$teamPlot <- renderPlot({
-        plotData <- getPlotData()
-        if(input$colorByTeam == "None"){
-            legend = NULL
-        } else{
-            legend = input$colorByTeam
-        }
-        g <- ggplot(plotData, aes(x = game_month, y = is_home_run, fill = legend))
-        g + geom_bar(stat="identity") + labs(x = "Month", y = "Home Runs") + labs(title=paste("Home Runs by Month for", input$team))
-    })
     
-    output$parkPlot <- renderPlot({
-        plotData <- getPlotData()
-        if(input$colorByPark == "None"){
-            legend = NULL
-        } else{
-            legend = input$colorByPark
-        }
-        g <- ggplot(plotData, aes(x = game_month, y = is_home_run, fill = legend))
-        g + geom_bar(stat="identity") + labs(x = "Month", y = "Home Runs") + labs(title=paste("Home Runs by Month in", input$park))
-    })
-    
-    output$batterPlot <- renderPlot({
-        plotData <- getPlotData()
-        if(input$colorByBatter == "None"){
-            legend = NULL
-        } else{
-            legend = input$colorByBatter
-        }
-        g <- ggplot(plotData, aes(x = game_month, y = is_home_run, fill = legend))
-        g + geom_bar(stat="identity") + labs(x = "Month", y = "Home Runs") + labs(title=paste("Home Runs by Month for", input$batter))
-    })
-    
-    output$pitcherPlot <- renderPlot({
-        plotData <- getPlotData()
-        if(input$colorByPitcher == "None"){
-            legend = NULL
-        } else{
-            legend = input$colorByPitcher
-        }
-        g <- ggplot(plotData, aes(x = game_month, y = is_home_run, fill = legend))
-        g + geom_bar(stat="identity") + labs(x = "Month", y = "Home Runs") + labs(title=paste("Home Runs by Month Against", input$pitch))
-    })
-    
-    output$allDataTbl <- renderTable({
-        table(data)
-    })
     
     # Modeling tabs functions
     # Model info
+    output$logEQ <- renderUI({
+        withMathJax(helpText('$$P(1|x) = \\frac{e^{\\beta_0+\\beta_1x}}{1+e^{\\beta_0+\\beta_1x}}$$'))
+    })
     
     # Model fitting
+    observe({
+        if(input$clearall2 == 0) return(NULL)
+        else {
+            updateCheckboxGroupInput(session,"expVar",  "Select Explanatory Variables: ", names(data)[-length(names(data))])
+        }
+    })
+    
     observeEvent(input$button1, {
-        withProgress(message = "Training Model", value = 1.0, {             
+        withProgress(message = "Training Models", value = .25, {             
 
             splitData <- trainTest()
-            trainData <- splitData[1]
-            testData <- splitData[2]
+            trainData <<- splitData[[1]]
+            testData <<- splitData[[2]]
             
             if(input$modelChoice == "All Models"){
     
-                logFit <- glmFit()
-                treeFit <- classFit()
-                forestFit <- randomFit()
-                models <- list(logFit,treeFit,forestFit)
+                logFit <<- glmFit()
+                incProgress(amount = 0.1, message = "Model Trained: Logistic Regression, Training: Classification Tree", detail = NULL,
+                            session = getDefaultReactiveDomain())
+                treeFit <<- classFit()
+                incProgress(amount = 0.15, message = "Model Trained: Classification Tree, Training: Random Forest", detail = NULL,
+                            session = getDefaultReactiveDomain())
+                forestFit <<- randomFit()
+                incProgress(amount = 0.25, message = "Model Trained: Random Forest", detail = NULL,
+                            session = getDefaultReactiveDomain())
+                incProgress(amount = 0.25, message = "All Models Trained", detail = NULL,
+                            session = getDefaultReactiveDomain())
+                
+                output$logSum <- renderPrint({summary(logFit)})
+                output$treeSum <- renderPrint({treeFit})
+                output$forSum <- renderPrint({forestFit})
+                
+                output$logConf <- renderPrint({
+                    p <- predict(logFit, dplyr::select(testData, -"is_home_run"))
+                    logTbl <- confusionMatrix(p, testData$is_home_run)
+                    logTbl
+                })
+                output$treeConf <- renderPrint({
+                    p <- predict(treeFit, dplyr::select(testData, -"is_home_run"))
+                    treeTbl <- confusionMatrix(p, testData$is_home_run)
+                    treeTbl
+                })
+                output$forConf <- renderPrint({
+                    p <- predict(forestFit, dplyr::select(testData, -"is_home_run"))
+                    forTbl <- confusionMatrix(p, testData$is_home_run)
+                    forTbl
+                })
                 
             } else if(input$modelChoice == "Logistic Regression (GLM)"){
-                models <- glmFit()
+                logFit <<- glmFit()
+                incProgress(amount = 0.75, message = "Model Trained: Logistic Regression", detail = NULL,
+                            session = getDefaultReactiveDomain())
+                output$logSum <- renderPrint({summary(logFit)})
+                output$logConf <- renderTable({
+                    p <- predict(logFit, dplyr::select(testData, -"is_home_run"))
+                    newTbl <-  confusionMatrix(p, testData$is_home_run)
+                    newTbl
+                })
             } else if(input$modelChoice == "Classification Tree"){
-                models <- classFit()
+                treeFit <<- classFit()
+                incProgress(amount = 0.75, message = "Model Trained: Classification Tree", detail = NULL,
+                            session = getDefaultReactiveDomain())
+                output$treeSum <- renderPrint({treeFit})
+                output$treeConf <- renderTable({
+                    p <- predict(treeFit, dplyr::select(testData, -"is_home_run"))
+                    newTbl <-  confusionMatrix(p, testData$is_home_run)
+                    newTbl
+                })
             } else if(input$modelChoice == "Random Forest"){
-                models <- randomFit()
+                forestFit <<- randomFit()
+                incProgress(amount = 0.75, message = "Model Trained: Random Forest", detail = NULL,
+                            session = getDefaultReactiveDomain())
+                outputforSum <- renderPrint({forestFit})
+                output$forConf <- renderTable({
+                    p <- predict(forestFit, dplyr::select(testData, -"is_home_run"))
+                    newTbl <-  confusionMatrix(p, testData$is_home_run)
+                    newTbl
+                })
             } 
         
         })
@@ -396,6 +396,37 @@ server <- function(input, output, session) {
     })
     
     # Model Prediction
+    output$outputVars <- renderText({
+        paste0("Variables Required: ", paste0(input$expVar, collapse = ";"))
+    })
+    
+    observeEvent(input$button2, {
+        if(input$predChoice == "Logistic Regression (GLM)"){
+            model <- logFit
+        } else if(input$predChoice == "Classification Tree"){
+            model <- treeFit
+        } else if(input$predChoice == "Random Forest"){
+            model <- forestFit
+        }
+        
+        inVal <- unlist(strsplit(input$predVal,";"))
+        newVals <- data.frame(t(inVal))
+        colnames(newVals) <- input$expVar
+        for(n in colnames(newVals)){
+            newVals[n] <- as(newVals[n],class(data[n]))
+        }
+        p <- predict(model, newVals)
+    
+        if(p == 1){
+            p <- "A Home Run!"
+        } else{
+            p <- "Not a Home Run"
+        }
+        output$outPred <- renderPrint({
+            print(paste0("The prediction for your input is: ", p[1]))
+        })
+        
+    })
 }
 
 # Run the application 
