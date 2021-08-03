@@ -65,9 +65,8 @@ ui <- dashboardPage(
                                 checkboxGroupInput("show_vars", "Columns in data set to show:",
                                                    names(data), selected = names(data), inline=FALSE),
                                 actionLink("clearall","Clear Columns"),
-                                br(),br(),
-                                textInput('filename',"Filename to save as? (default will be 'new_baseball.csv')"),
-                                actionButton("generateButton","Save Data")
+                                br(),
+                                downloadButton('downCSV','Download Data')
                             )
                         ),
                         box(width=9,status = "success", title = "Data", solidHeader = TRUE,
@@ -257,11 +256,12 @@ ui <- dashboardPage(
                             textOutput("outputVars"),
                             br(),
                             br(),                            
-                            textInput("predVal", "Input values for above variables with a ';' between each and no space. For example, '8;Coors Field;2'"),
+                            textInput("predVal", paste("Input values for above variables with a ';' between each and no space.", "For example, 'inning; park_name; strikes' -> '8;Coors Field;2'", sep="\n")),
                             actionButton('button2',"Predict!", icon("search"))
                         ),
-                        box("Prediction", status = "success", solidHeader=T,
-                            verbatimTextOutput("outPred"))
+                        box("Prediction", status = "success", solidHeader=T,width=8,
+                            verbatimTextOutput("outPred")
+                        )
                     )
             )
         )
@@ -348,24 +348,15 @@ server <- function(input, output, session) {
         }
     })
      
-    observe({
-        if(input$generateButton == 1) {
-
-            if(!isTruthy(input$filename)){
-                write.csv(getNewData(),"new_baseball.csv", row.names = FALSE, na = "")
-            } else{
-                if(grepl(".csv", input$filename, fixed=TRUE)){
-                    write.csv(getNewData(),input$filename, row.names = FALSE, na = "")
-                } else{
-                    newFile <- paste0(input$filename, ".csv")
-                    write.csv(getNewData(),newFile, row.names = FALSE, na = "")
-                }
-            }
+    output$downCSV <- downloadHandler(
+        filename = function() { paste("new_baseball", '.csv', sep='') },
+        content = function(file) {
+            write.csv(getNewData(),file, row.names = FALSE, na = "")
         }
-    })
+    )
     
     output$datadict <- renderTable({
-        dict <- read.csv('../Project3/datadict.csv', fileEncoding="UTF-8-BOM")
+        dict <- read.csv('datadict.csv', fileEncoding="UTF-8-BOM")
         dict
     })
     
@@ -600,7 +591,7 @@ server <- function(input, output, session) {
     
     # Model Prediction
     output$outputVars <- renderText({
-        paste0("Variables Required: ", paste0(input$expVar, collapse = ";"))
+        paste0("Variables Required: ", paste0(input$expVar, collapse = "; "))
     })
     
     observeEvent(input$button2, {
