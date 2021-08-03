@@ -24,5 +24,5 @@ install.packages(c("shiny","dashboardthemes","plotly","shinydashboard","tidyvers
 ### Code to Run the App
 Run this code to open the applet on your local machine.
 ```{r}
-shiny::runGitHub("ST558-Project3", "pseudonym-code")
+shiny::runGitHub("ST558-Project3", "pseudonym-code", ref="main")
 ```
